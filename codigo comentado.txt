@@ -1,0 +1,292 @@
+# Importación de bibliotecas necesarias
+import streamlit as st  # Para crear la interfaz web de la aplicación
+import matplotlib.pyplot as plt  # Para crear visualizaciones gráficas
+import networkx as nx  # Para trabajar con grafos y algoritmos de rutas
+import matplotlib.image as mpimg  # Para cargar y mostrar imágenes del mapa
+from datetime import datetime  # Para manejar fechas y horas
+import pytz  # Para manejar zonas horarias
+import requests  # Para hacer peticiones HTTP a APIs (clima)
+
+# Diccionario que define las coordenadas (x,y) de cada ubicación en el campus
+# Las coordenadas se usan para posicionar los nodos en el visualización
+pos = {
+    "Entrada principal 1": (10.5, 10.5),  # Coordenada x=10.5, y=10.5
+    "Ad portas": (8.6, 9.6),  # Cada ubicación tiene sus propias coordenadas
+    "Parqueadero 2": (9.5, 9.8),
+    "Puente rojo": (7.6, 9.4),
+    "Villa de Leyva": (6.3, 8.6),
+    "Puente gris": (5.6, 8.9),
+    "Punto wok": (5.6, 8.2),
+    "Biblioteca": (6.8, 7.6),
+    "Embarcadero y G": (7.6, 7.1),
+    "Edificio E": (8.2, 6.4),
+    "E1": (8.5, 5.8),
+    "E2": (7.9, 6.0),
+    "Puente madera": (7.5, 4.8),
+    "Atelier y Medicina": (6.0, 5.0),
+    "CAF": (4.6, 4.0),
+    "Arcos y Nason": (3.8, 3.6),
+    "Ingeniería A, B, C": (3.5, 6.6),
+    "Parqueadero 1": (1.8, 7.7),
+    "Quioscos": (2.5, 8.0),
+    "Salida K": (4.4, 9.6),
+    "Hospital Sabana": (10.2, 0.7),
+    "INALDE": (9.1, 1.5),
+    "Parqueadero 3": (8.5, 2.2)
+}
+
+# Creación del grafo base usando NetworkX
+G_original = nx.Graph()  # Crea un grafo no dirigido (las conexiones son bidireccionales)
+G_original.add_nodes_from(pos.keys())  # Añade todos los nodos usando las claves del diccionario pos
+
+# Definición de los pesos de las aristas para cada tipo de usuario
+pesos_por_usuario = {
+    "Niño": {  # Perfil de usuario niño
+        ("Entrada principal 1", "Ad portas"): 2,  # Conexión entre estos puntos con peso 2
+        ("Ad portas", "Parqueadero 2"): 2,
+        ("Ad portas", "Puente rojo"): 2,
+        ("Puente rojo", "Villa de Leyva"): 3,
+        ("Villa de Leyva", "Puente gris"): 2,
+        ("Villa de Leyva", "Punto wok"): 2,
+        ("Villa de Leyva", "Biblioteca"): 2,
+        ("Biblioteca", "Embarcadero y G"): 2,
+        ("Embarcadero y G", "Edificio E"): 2,
+        ("Edificio E", "E1"): 1,
+        ("Edificio E", "E2"): 1,
+        ("Edificio E", "Puente madera"): 3,
+        ("Puente madera", "Atelier y Medicina"): 2,
+        ("Atelier y Medicina", "CAF"): 3,
+        ("CAF", "Arcos y Nason"): 2,
+        ("Arcos y Nason", "Ingeniería A, B, C"): 3,
+        ("Ingeniería A, B, C", "Parqueadero 1"): 2,
+        ("Ingeniería A, B, C", "Quioscos"): 2,
+        ("Ingeniería A, B, C", "Salida K"): 3,
+        ("Puente madera", "Hospital Sabana"): 4,
+        ("Puente madera", "INALDE"): 2,
+        ("INALDE", "Parqueadero 3"): 2,
+        ("Parqueadero 3", "Hospital Sabana"): 3
+    },
+    "Adolescente": {  #perfil usuario Adolescente
+        ("Entrada principal 1", "Ad portas"): 1,
+        ("Ad portas", "Parqueadero 2"): 1,
+        ("Ad portas", "Puente rojo"): 1,
+        ("Puente rojo", "Villa de Leyva"): 2,
+        ("Villa de Leyva", "Puente gris"): 1,
+        ("Villa de Leyva", "Punto wok"): 1,
+        ("Villa de Leyva", "Biblioteca"): 1,
+        ("Biblioteca", "Embarcadero y G"): 1,
+        ("Embarcadero y G", "Edificio E"): 1,
+        ("Edificio E", "E1"): 1,
+        ("Edificio E", "E2"): 1,
+        ("Edificio E", "Puente madera"): 2,
+        ("Puente madera", "Atelier y Medicina"): 1,
+        ("Atelier y Medicina", "CAF"): 2,
+        ("CAF", "Arcos y Nason"): 1,
+        ("Arcos y Nason", "Ingeniería A, B, C"): 2,
+        ("Ingeniería A, B, C", "Parqueadero 1"): 1,
+        ("Ingeniería A, B, C", "Quioscos"): 1,
+        ("Ingeniería A, B, C", "Salida K"): 2,
+        ("Puente madera", "Hospital Sabana"): 3,
+        ("Puente madera", "INALDE"): 1,
+        ("INALDE", "Parqueadero 3"): 1,
+        ("Parqueadero 3", "Hospital Sabana"): 2
+    },
+    "Adulto": {  #Perfil usuario de Adulto
+        ("Entrada principal 1", "Ad portas"): 2,
+        ("Ad portas", "Parqueadero 2"): 2,
+        ("Ad portas", "Puente rojo"): 2,
+        ("Puente rojo", "Villa de Leyva"): 3,
+        ("Villa de Leyva", "Puente gris"): 2,
+        ("Villa de Leyva", "Punto wok"): 2,
+        ("Villa de Leyva", "Biblioteca"): 2,
+        ("Biblioteca", "Embarcadero y G"): 2,
+        ("Embarcadero y G", "Edificio E"): 2,
+        ("Edificio E", "E1"): 1,
+        ("Edificio E", "E2"): 1,
+        ("Edificio E", "Puente madera"): 3,
+        ("Puente madera", "Atelier y Medicina"): 2,
+        ("Atelier y Medicina", "CAF"): 3,
+        ("CAF", "Arcos y Nason"): 2,
+        ("Arcos y Nason", "Ingeniería A, B, C"): 3,
+        ("Ingeniería A, B, C", "Parqueadero 1"): 2,
+        ("Ingeniería A, B, C", "Quioscos"): 2,
+        ("Ingeniería A, B, C", "Salida K"): 3,
+        ("Puente madera", "Hospital Sabana"): 4,
+        ("Puente madera", "INALDE"): 2,
+        ("INALDE", "Parqueadero 3"): 2,
+        ("Parqueadero 3", "Hospital Sabana"): 3
+    },
+    "Tercera Edad": {  #Perfil usuario de Tercera edad 
+        ("Entrada principal 1", "Ad portas"): 4,
+        ("Ad portas", "Parqueadero 2"): 3,
+        ("Ad portas", "Puente rojo"): 3,
+        ("Puente rojo", "Villa de Leyva"): 4,
+        ("Villa de Leyva", "Puente gris"): 3,
+        ("Villa de Leyva", "Punto wok"): 3,
+        ("Villa de Leyva", "Biblioteca"): 3,
+        ("Biblioteca", "Embarcadero y G"): 3,
+        ("Embarcadero y G", "Edificio E"): 3,
+        ("Edificio E", "E1"): 2,
+        ("Edificio E", "E2"): 2,
+        ("Edificio E", "Puente madera"): 4,
+        ("Puente madera", "Atelier y Medicina"): 3,
+        ("Atelier y Medicina", "CAF"): 4,
+        ("CAF", "Arcos y Nason"): 3,
+        ("Arcos y Nason", "Ingeniería A, B, C"): 4,
+        ("Ingeniería A, B, C", "Parqueadero 1"): 3,
+        ("Ingeniería A, B, C", "Quioscos"): 3,
+        ("Ingeniería A, B, C", "Salida K"): 4,
+        ("Puente madera", "Hospital Sabana"): 5,
+        ("Puente madera", "INALDE"): 3,
+        ("INALDE", "Parqueadero 3"): 3,
+        ("Parqueadero 3", "Hospital Sabana"): 4
+    }
+}
+
+# Obtenemos todas las aristas usando las conexiones definidas para niños
+edges = list(pesos_por_usuario["Niño"].keys())
+# Añadimos estas aristas al grafo original (sin pesos todavía)
+G_original.add_edges_from(edges)
+
+# Función para obtener la hora actual y temperatura en Bogotá-para esta parte de implementación se hizo apoyo de DeepSeek
+def obtener_info_bogota():
+    zona_horaria = pytz.timezone("America/Bogota")  # Configura zona horaria
+    hora_actual = datetime.now(zona_horaria).strftime("%H:%M:%S")  # Hora formateada
+    try:
+        # Consulta API de clima
+        url = "https://api.open-meteo.com/v1/forecast?latitude=4.7&longitude=-74.1&current=temperature_2m"
+        r = requests.get(url)  # Hace la petición HTTP
+        temperatura = r.json()["current"]["temperature_2m"]  # Extrae temperatura del JSON
+        clima = f"Temperatura actual: {temperatura}°C"  # Formatea el mensaje
+    except:
+        clima = "No se pudo obtener la información del clima."  # Mensaje de error
+    return hora_actual, clima  # Retorna ambos valores
+
+# Configuración de la página de Streamlit
+st.set_page_config(
+    page_title="Rutas Óptimas Campus",  # Título en el navegador
+    layout="centered",  # Diseño centrado
+    page_icon="🧭")  # Ícono de brújula
+
+# Título principal con formato HTML
+st.markdown("""
+<h1 style='text-align: center;'>🧭 Rutas Óptimas en el Campus - Universidad de La Sabana</h1>
+<div style='background-color: #1f2c3c; padding: 20px; border-radius: 10px;'>
+    <p style='color: white;'>
+    Bienvenido a la aplicación de rutas óptimas...
+    </p>
+</div>
+""", unsafe_allow_html=True)  # Permite renderizar HTML
+
+# Panel de simulación en la barra lateral
+st.sidebar.title("🔧 Simulación")  # Título del panel
+simular = st.sidebar.checkbox("Activar simulación")  # Checkbox para activar funciones extra
+
+nodos_excluidos = []  # Lista para almacenar nodos excluidos
+peso_personalizado = False  # Flag para modo de peso personalizado
+
+if simular:  # Si la simulación está activada
+    # Selector múltiple para excluir nodos
+    nodos_excluidos = st.sidebar.multiselect("Selecciona edificios cerrados:", list(pos.keys()))
+    # Checkbox para cambiar el cálculo de pesos
+    peso_personalizado = st.sidebar.checkbox("Comparar peso por distancia en lugar de tiempo")
+
+# Creamos una copia del grafo original para trabajar sin modificar el original
+G = G_original.copy()
+
+# Selectores para el usuario principal
+tipo_usuario = st.selectbox("Selecciona tu tipo de usuario", list(pesos_por_usuario.keys()))
+inicio = st.selectbox("Selecciona el punto de inicio", list(pos.keys()))
+destino = st.selectbox("Selecciona el punto de destino", list(pos.keys()))
+
+# Aplicamos los pesos según las selecciones del usuario
+for u, v in edges:  # Para cada conexión en el grafo
+    if u in nodos_excluidos or v in nodos_excluidos:  # Si algún nodo está excluido
+        if G.has_edge(u, v):  # Verificamos si existe la conexión
+            G.remove_edge(u, v)  # Eliminamos la conexión
+    else:
+        if not peso_personalizado:  # Si no está en modo personalizado
+            # Obtenemos peso según tipo de usuario
+            peso = pesos_por_usuario[tipo_usuario].get((u, v), 1)
+        else:  # Modo personalizado (por distancia)
+            x1, y1 = pos[u]  # Coordenadas del primer nodo
+            x2, y2 = pos[v]  # Coordenadas del segundo nodo
+            # Calculamos distancia euclidiana
+            peso = ((x2 - x1)**2 + (y2 - y1)**2)**0.5
+        # Añadimos la conexión con su peso
+        G.add_edge(u, v, weight=peso)
+
+if inicio != destino:  # Verificamos que no sea el mismo nodo
+    try:
+        # Calculamos la ruta más corta usando Dijkstra
+        ruta = nx.dijkstra_path(G, source=inicio, target=destino, weight="weight")
+        # Calculamos la longitud total del camino
+        tiempo_total = nx.dijkstra_path_length(G, source=inicio, target=destino, weight="weight")
+        # Mostramos el resultado al usuario
+        st.success(f"Ruta más corta de **{inicio}** a **{destino}** con un tiempo estimado de {tiempo_total:.2f} unidades.")
+
+        # Cargamos la imagen del mapa-Se puede cambiar por otra imagen que este definida en el repositorio
+        img = mpimg.imread("Grafo universidad3.jpg")
+        # Coloreamos las aristas: rojo para la ruta, gris para las demás
+        edge_colors = ['red' if (u in ruta and v in ruta and abs(ruta.index(u) - ruta.index(v)) == 1) else 'gray' for u, v in G.edges()]
+
+        # Configuración de la visualización
+        fig, ax = plt.subplots(figsize=(16, 12))  # Figura grande
+        
+        # Mostramos la imagen de fondo con transparencia
+        ax.imshow(img, extent=[0, 11, 0, 11], alpha=0.4)
+        
+        # Dibujamos los nodos con parámetros personalizados-Parámetros personalizados brindados por DeepSeek y Streamlit
+        nx.draw_networkx_nodes(
+            G, pos,
+            node_size=2500,  # Tamaño grande
+            node_color='lightblue',  # Color azul claro
+            edgecolors='darkblue',  # Borde azul oscuro
+            linewidths=2,  # Grosor del borde
+            alpha=0.9,  # Ligera transparencia
+            ax=ax)
+        
+        # Dibujamos las aristas
+        nx.draw_networkx_edges(
+            G, pos,
+            width=2.5,  # Más gruesas
+            edge_color=edge_colors,  # Colores definidos antes
+            alpha=0.7,  # Transparencia
+            ax=ax)
+        
+        # Dibujamos las etiquetas de los nodos
+        nx.draw_networkx_labels(
+            G, pos,
+            font_size=9,  # Tamaño de letra
+            font_weight='bold',  # Negrita
+            font_color='darkblue',  # Color
+            # Fondo blanco semitransparente
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.7, boxstyle='round,pad=0.3'),
+            ax=ax)
+        
+        # Dibujamos los pesos de las aristas
+        nx.draw_networkx_edge_labels(
+            G, pos,
+            edge_labels={(u, v): f"{d['weight']:.1f}" for u, v, d in G.edges(data=True)},
+            font_size=8,
+            font_color='darkred',
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.7),
+            ax=ax,
+            rotate=False)  # Sin rotación para mejor lectura
+        
+        # Ajustes finales del gráfico
+        plt.axis('off')  # Ocultamos ejes
+        plt.tight_layout()  # Mejor distribución
+        
+        # Mostramos el gráfico en Streamlit
+        st.pyplot(fig)
+
+    except nx.NetworkXNoPath:  # Si no hay camino posible
+        st.error("No existe una ruta posible con las condiciones actuales.")
+else:  # Si origen y destino son iguales
+    st.warning("Selecciona dos puntos distintos para ver la ruta.")
+
+# Obtenemos y mostramos información de hora y clima
+hora, clima = obtener_info_bogota()
+st.info(f"🕒 Hora local en Bogotá: {hora}")  # Hora en caja azul
+st.warning(f"🌡️ {clima}")  # Clima en caja amarilla

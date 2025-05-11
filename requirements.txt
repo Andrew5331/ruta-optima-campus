@@ -1,0 +1,6 @@
+streamlit
+matplotlib
+networkx
+pytz
+requests
+python-dotenv
